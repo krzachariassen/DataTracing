@@ -13,6 +13,10 @@ type CollectorService struct {
 	batchSize  int
 	flushEvery time.Duration
 
+	mu           sync.Mutex
+	pendingTrace map[string][]domain.Span
+	keptTrace    map[string]struct{}
+
 	ch chan domain.Span
 	wg sync.WaitGroup
 }
@@ -30,7 +34,15 @@ func NewCollectorService(store TraceStore, policy TailSamplingPolicy, batchSize 
 	if buffer <= 0 {
 		buffer = 1000
 	}
-	c := &CollectorService{store: store, policy: policy, batchSize: batchSize, flushEvery: flushEvery, ch: make(chan domain.Span, buffer)}
+	c := &CollectorService{
+		store:        store,
+		policy:       policy,
+		batchSize:    batchSize,
+		flushEvery:   flushEvery,
+		pendingTrace: make(map[string][]domain.Span),
+		keptTrace:    make(map[string]struct{}),
+		ch:           make(chan domain.Span, buffer),
+	}
 	c.wg.Add(workers)
 	for i := 0; i < workers; i++ {
 		go c.worker()
@@ -66,10 +78,8 @@ func (c *CollectorService) worker() {
 		for _, span := range batch {
 			byTrace[span.TraceID] = append(byTrace[span.TraceID], span)
 		}
-		for _, traceSpans := range byTrace {
-			if c.policy.Keep(traceSpans) {
-				_ = c.store.SaveSpans(context.Background(), traceSpans)
-			}
+		for traceID, traceSpans := range byTrace {
+			c.handleTraceChunk(traceID, traceSpans)
 		}
 		batch = batch[:0]
 	}
@@ -89,4 +99,26 @@ func (c *CollectorService) worker() {
 			flush()
 		}
 	}
+}
+
+func (c *CollectorService) handleTraceChunk(traceID string, spans []domain.Span) {
+	c.mu.Lock()
+	if _, ok := c.keptTrace[traceID]; ok {
+		c.mu.Unlock()
+		_ = c.store.SaveSpans(context.Background(), spans)
+		return
+	}
+
+	c.pendingTrace[traceID] = append(c.pendingTrace[traceID], spans...)
+	fullTrace := append([]domain.Span(nil), c.pendingTrace[traceID]...)
+	if !c.policy.Keep(fullTrace) {
+		c.mu.Unlock()
+		return
+	}
+
+	delete(c.pendingTrace, traceID)
+	c.keptTrace[traceID] = struct{}{}
+	c.mu.Unlock()
+
+	_ = c.store.SaveSpans(context.Background(), fullTrace)
 }
