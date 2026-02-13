@@ -35,3 +35,12 @@ go run ./cmd/query-api
 
 - Public `pkg/*` packages are intentionally decoupled from `internal/*` implementation packages.
 - `internal/architecture/dependency_test.go` enforces this rule in CI.
+
+## Project handover documents
+
+For IDE-based continuation, use:
+
+- `docs/project-purpose.md`
+- `docs/current-state.md`
+- `docs/backlog-phases.md`
+- `docs/engineering-protocol.md`
