@@ -3,15 +3,15 @@ package main
 import (
 	"datatracing/internal/application"
 	"datatracing/internal/infrastructure/httpserver"
-	"datatracing/internal/infrastructure/memory"
+	"datatracing/internal/infrastructure/store"
 	"log"
 	"net/http"
 	"time"
 )
 
 func main() {
-	store := memory.NewTraceStore()
-	collector := application.NewCollectorService(store, application.TailSamplingPolicy{ErrorAlways: true, LatencyThreshold: 500 * time.Millisecond}, 200, 300*time.Millisecond, 4, 5000)
+	traceStore := store.NewSharedTraceStore()
+	collector := application.NewCollectorService(traceStore, application.TailSamplingPolicy{ErrorAlways: true, LatencyThreshold: 500 * time.Millisecond}, 200, 300*time.Millisecond, 4, 5000)
 	defer collector.Close()
 
 	h := httpserver.CollectorHandler(collector)
