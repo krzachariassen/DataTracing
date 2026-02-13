@@ -6,7 +6,7 @@ DataTracing v2 is a generic "Jaeger for data pipelines" implemented in Go.
 
 - Clean Architecture layout (`cmd`, `internal`, `pkg`)
 - Canonical tracing model in `pkg/tracing` (`Trace`, `Span`, `SpanLink`)
-- In-memory `TraceStore`
+- File-backed shared `TraceStore` by default (`./data/traces.jsonl`) with optional in-memory mode via `DATATRACING_STORE=memory`
 - Query DAG reconstruction
 - Go SDK (`Start`, `End`, attributes, events)
 - W3C-like propagation helpers for HTTP/Kafka/workflow carriers
@@ -21,6 +21,7 @@ DataTracing v2 is a generic "Jaeger for data pipelines" implemented in Go.
 go test ./...
 go run ./cmd/collector
 go run ./cmd/query-api
+# both binaries use DATATRACING_STORE_PATH (default: ./data/traces.jsonl)
 ```
 
 ## Next steps

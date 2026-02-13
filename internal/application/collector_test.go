@@ -41,3 +41,23 @@ func TestCollector_IngestAndSample(t *testing.T) {
 		t.Fatalf("expected stored spans, got %d", len(store.spans))
 	}
 }
+
+func TestCollector_DoesNotDropEarlyTraceChunks(t *testing.T) {
+	store := &spyStore{}
+	collector := NewCollectorService(store, TailSamplingPolicy{ErrorAlways: true}, 1, time.Hour, 2, 10)
+
+	if !collector.Ingest(domain.Span{TraceID: "t1", SpanID: "s1", Operation: "op", Status: domain.SpanStatusOK}) {
+		t.Fatal("ingest should succeed")
+	}
+	if !collector.Ingest(domain.Span{TraceID: "t1", SpanID: "s2", Operation: "op", Status: domain.SpanStatusError}) {
+		t.Fatal("ingest should succeed")
+	}
+
+	collector.Close()
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if len(store.spans) != 2 {
+		t.Fatalf("expected full trace to be persisted once sampled, got %d spans", len(store.spans))
+	}
+}
